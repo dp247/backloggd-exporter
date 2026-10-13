@@ -15,7 +15,7 @@ import httpx
 from bs4 import BeautifulSoup
 from textual import work
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Label, Select, SelectionList, Static
 
@@ -347,8 +347,6 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
 
             if not values["output"]:
                 values["output"] = os.getcwd()
-                print()
-                return
 
             self.dismiss(values)
 
@@ -363,64 +361,68 @@ class Exporter(App):
     Screen {
         layout: vertical;
     }
-    #buttons {
-        height: 3;
-        margin-top: 1;
-        align-horizontal: center;
-    }
-    #buttons Button {
-        margin: 0 1;
-        min-width: 12;
-    }
-    #filters {
-        height: 8;
-        padding: 0 1;
+    #main {
+        height: 1fr;
         margin-top: 1;
     }
-    #game-count {
-        width: 100%;
-        height: 1;
-        text-align: right;
-        padding: 0 1;
-    }
-    #platform-panel, #status-panel {
+    #table-area {
+        width: 2fr;
         height: 100%;
     }
-    #platform-panel {
-        width: 1fr;
-        margin-right: 2;
-    }
-    #status-panel {
-        width: 30;
-    }
-    #platform-panel Label, #status-panel Label {
-        width: 100%;
-        height: 1;
-        margin-left: 1;
-    }
-    #platform, #statuses {
-        width: 100%;
-    }
-    #platform {
-        height: 3;
-    }
-    #statuses {
-        height: 6;
-        padding: 0 1;
+    #games {
+        height: 1fr;
     }
     #table-info {
-        height: 1;
-        margin-top: 1;
+        height: 3;
+        padding: 1 1;
     }
     #message {
         width: 1fr;
         height: 1;
-        margin-left: 1;
     }
     #game-count {
-        width: 24;
+        width: 16;
         height: 1;
         text-align: right;
+    }
+    #sidebar {
+        width: 1fr;
+        min-width: 32;
+        max-width: 44;
+        height: 100%;
+        padding: 0 1;
+    }
+    #filters {
+        height: 1fr;
+    }
+    #sidebar Label {
+        width: 100%;
+        height: 1;
+        margin-left: 1;
+    }
+    #status-label {
+        margin-top: 1;
+    }
+    #platform {
+        width: 100%;
+        height: 3;
+        margin-bottom: 1;
+    }
+    #statuses {
+        width: 100%;
+        height: 6;
+        padding: 0 1;
+    }
+    #buttons {
+        height: 6;
+        margin-bottom: 1;
+        grid-size: 2;
+        grid-gutter: 0 1;
+        grid-rows: 3;
+    }
+    #buttons Button {
+        width: 100%;
+        min-width: 12;
     }
     """
     def __init__(self,settings):
@@ -431,63 +433,53 @@ class Exporter(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal(id="buttons"):
-                yield Button(
-                    "Load games",
-                    id="load",
-                    variant="primary",
-                )
-                yield Button(
-                    "Export CSV",
-                    id="export",
-                    disabled=True,
-                    variant="success",
-                )
-                yield Button("Cancel load", id="cancel", disabled=True, variant="error")
-                yield Button("Settings", id="settings")
+        with Horizontal(id="main"):
+            with Vertical(id="table-area"):
+                yield DataTable(id="games")
+                with Horizontal(id="table-info"):
+                    yield Static(
+                        "Please select a platform and statuses, then load games.",
+                        id="message",
+                        markup=False,
+                    )
+                    yield Static("0 games", id="game-count")
 
-        with Horizontal(id="filters"):
-            with Vertical(id="platform-panel"):
-                yield Label("Platform")
-
-                yield Select(
-                    [
-                        ("Any platform", ""),
-                        *[
-                            (label, slug)
-                            for slug, label in sorted(
-                                PLATFORMS.items(),
-                                key=lambda item: item[1].casefold(),
-                            )
+            with Vertical(id="sidebar"):
+                with VerticalScroll(id="filters"):
+                    yield Label("Platform")
+                    yield Select(
+                        [
+                            ("Any platform", ""),
+                            *[
+                                (label, slug)
+                                for slug, label in sorted(
+                                    PLATFORMS.items(),
+                                    key=lambda item: item[1].casefold(),
+                                )
+                            ],
                         ],
-                    ],
-                    value=self.settings["platform"],
-                    allow_blank=False,
-                    id="platform",
-                )
-            with Vertical(id="status-panel"):
-                yield Label("Status")
-                yield SelectionList(
-                    *[
-                        (
-                            status.title(),
-                            status,
-                            status in self.settings["statuses"],
-                        )
-                        for status in STATUSES
-                    ],
-                    id="statuses",
-                )
+                        value=self.settings["platform"],
+                        allow_blank=False,
+                        id="platform",
+                    )
+                    yield Label("Status", id="status-label")
+                    yield SelectionList(
+                        *[
+                            (
+                                status.title(),
+                                status,
+                                status in self.settings["statuses"],
+                            )
+                            for status in STATUSES
+                        ],
+                        id="statuses",
+                    )
+                with Grid(id="buttons"):
+                    yield Button("Load games", id="load", variant="primary")
+                    yield Button("Export CSV", id="export", disabled=True, variant="success")
+                    yield Button("Cancel load", id="cancel", disabled=True, variant="error")
+                    yield Button("Settings", id="settings")
 
-        with Horizontal(id="table-info"):
-            yield Static(
-                "Please select a platform and statuses, then load games.",
-                id="message",
-                markup=False,
-            )
-            yield Static("0 games", id="game-count")
-
-        yield DataTable(id="games")
         yield Footer()
 
     def on_mount(self):
@@ -522,6 +514,7 @@ class Exporter(App):
         if self.busy: return
         self.rows = []
         self.query_one(DataTable).clear()
+        self.update_game_count(0)
         self.query_one('#export',Button).disabled = True
         self.load_rows()
 
