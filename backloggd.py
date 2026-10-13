@@ -356,7 +356,15 @@ class SettingsScreen(ModalScreen[dict[str, str] | None]):
 
 class Exporter(App):
     TITLE = 'Backloggd Exporter'
-    BINDINGS = [('ctrl+q','quit','Quit'), ('ctrl+l','load','Load games'), ("ctrl+s", "settings", "Settings"), ('escape','cancel','Cancel load')]
+    BINDINGS = [
+        ("ctrl+q", "quit", "Quit"),
+        ("ctrl+l", "load", "Load games"),
+        ("ctrl+s", "settings", "Settings"),
+        ("escape", "cancel", "Cancel load"),
+        ("f2", "sort_id", "Sort by ID"),
+        ("f3", "sort_name", "Sort by name"),
+        ("f4", "sort_stars", "Sort by rating"),
+    ]
     CSS = """
     Screen {
         layout: vertical;
@@ -430,6 +438,8 @@ class Exporter(App):
         self.settings = settings
         self.rows = []
         self.busy = False
+        self.sort_column = "game_id"
+        self.sort_reverse = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -484,7 +494,34 @@ class Exporter(App):
 
     def on_mount(self):
         self.title = self.TITLE
-        self.query_one(DataTable).add_columns('Game ID','Name','Status','Stars','URL')
+        table = self.query_one("#games", DataTable)
+        table.cursor_type = "row"
+
+        table.add_column("Game ID", key="game_id")
+        table.add_column("Name", key="name")
+        table.add_column("Status", key="status")
+        table.add_column("Stars", key="stars")
+        table.add_column("URL", key="url")
+
+    def populate_table(self):
+        table = self.query_one("#games", DataTable)
+        table.clear()
+
+        for game in self.rows:
+            table.add_row(
+                game.game_id,
+                game.title,
+                game.display_status,
+                (
+                    ""
+                    if game.rating_stars is None
+                    else f"{game.rating_stars:g}"
+                ),
+                game.url,
+                key=game.game_id,
+            )
+
+        self.apply_table_sort()
 
     def update_static(self, element, text):
         self.query_one(f'#{element}', Static).update(text)
@@ -570,8 +607,7 @@ class Exporter(App):
             statuses = list(self.query_one('#statuses',SelectionList).selected)
             self.update_static('message', 'Loading…')
             self.rows = await fetch_games(username,platform,statuses,self.settings["cookies"].strip(),lambda page,count: self.update_static('message', f'Page {page}: {count} games loaded…'))
-            table = self.query_one(DataTable)
-            for r in self.rows: table.add_row(r.game_id,r.title,r.statuses.title(),'' if r.rating_stars is None else f'{r.rating_stars:g}',r.url)
+            self.populate_table()
             self.query_one('#export',Button).disabled = False
             self.update_game_count(len(self.rows))
             self.update_static('message', f'Load complete. Click "Export CSV" to save the games')
@@ -583,6 +619,73 @@ class Exporter(App):
             self.query_one('#load',Button).disabled = False
             self.query_one('#cancel',Button).disabled = True
 
+    def sort_table(self, column: str, reverse: bool | None = None):
+        """Choose a column, or toggle its direction if already selected."""
+        if column not in ("game_id", "name", "stars"):
+            return
+
+        if reverse is None:
+            if column == self.sort_column:
+                reverse = not self.sort_reverse
+            else:
+                reverse = False
+
+        self.sort_column = column
+        self.sort_reverse = reverse
+
+        self.apply_table_sort()
+
+
+    def apply_table_sort(self):
+        table = self.query_one("#games", DataTable)
+
+        if self.sort_column == "game_id":
+            table.sort(
+                "game_id",
+                key=lambda value: int(value),
+                reverse=self.sort_reverse,
+            )
+
+        elif self.sort_column == "name":
+            table.sort(
+                "name",
+                key=lambda value: str(value).casefold(),
+                reverse=self.sort_reverse,
+            )
+
+        elif self.sort_column == "stars":
+            def star_key(value):
+                if value == "":
+                    return (True, 0.0)
+
+                rating = float(value)
+
+                return (
+                    False,
+                    -rating if self.sort_reverse else rating,
+                )
+
+            table.sort("stars", key=star_key)
+
+    def on_data_table_header_selected(
+        self,
+        event: DataTable.HeaderSelected,
+    ):
+        column = event.column_key.value
+
+        if column in ("game_id", "name", "stars"):
+            self.sort_table(column)
+
+    def action_sort_id(self):
+        self.sort_table("game_id")
+
+
+    def action_sort_name(self):
+        self.sort_table("name")
+
+
+    def action_sort_stars(self):
+        self.sort_table("stars")
 
 def main():
     config_default = os.path.join(os.getcwd(),'config', 'config.json')
