@@ -1,0 +1,7 @@
+{
+  "username": "<backloggd username>",
+  "cookies": "<path to cookies file>",
+  "platform": "<platform slug>",
+  "statuses": ["played", "playing", "backlog", "wishlist"],
+  "output": "<path to output CSV file>"
+}
