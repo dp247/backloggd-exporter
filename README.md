@@ -1,7 +1,7 @@
 # Backloggd to CSV
 A lightweight, easy-to-use terminal-based alternative for exporting your games from Backloggd to a CSV.
 
-<img src=".assets/image.png" width="500" height="300">
+<img src=".assets/image.png" width="750" height="450">
 
 ## Features
 - Terminal-based UI powered by Textual
